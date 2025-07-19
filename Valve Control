@@ -1,0 +1,101 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+#define VALVE_INLET_PIN    3
+#define VALVE_OUTLET_PIN   4
+
+#define PRESSURE_SENSOR_PIN A0
+#define LEVEL_SENSOR_TRIG   8
+#define LEVEL_SENSOR_ECHO   9
+
+#define RPM_SENSOR_PIN      2
+#define CURRENT_SENSOR_PIN  A1
+#define VOLTAGE_SENSOR_PIN  A2
+
+volatile int rpmCount = 0;
+unsigned long lastRPMRead = 0;
+float rpm = 0;
+
+void rpmISR() {
+  rpmCount++;
+}
+
+void setup() {
+  Serial.begin(9600);
+  lcd.begin();
+  lcd.backlight();
+
+  pinMode(VALVE_INLET_PIN, OUTPUT);
+  pinMode(VALVE_OUTLET_PIN, OUTPUT);
+  pinMode(LEVEL_SENSOR_TRIG, OUTPUT);
+  pinMode(LEVEL_SENSOR_ECHO, INPUT);
+  pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(RPM_SENSOR_PIN), rpmISR, FALLING);
+}
+
+float readPressure() {
+  int sensorValue = analogRead(PRESSURE_SENSOR_PIN);
+  float voltage = sensorValue * (5.0 / 1023.0);
+  float pressure_kPa = (voltage - 0.5) * 100.0;  // For MPX5700
+  return pressure_kPa;
+}
+
+float readWaterLevel() {
+  digitalWrite(LEVEL_SENSOR_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(LEVEL_SENSOR_TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(LEVEL_SENSOR_TRIG, LOW);
+  long duration = pulseIn(LEVEL_SENSOR_ECHO, HIGH);
+  float distance_cm = duration * 0.034 / 2;
+  return distance_cm;
+}
+
+void readRPM() {
+  unsigned long now = millis();
+  if (now - lastRPMRead >= 1000) {
+    rpm = rpmCount * 60.0;
+    rpmCount = 0;
+    lastRPMRead = now;
+  }
+}
+
+void loop() {
+  float pressure = readPressure();
+  float waterLevel = readWaterLevel();
+  readRPM();
+  float voltage = analogRead(VOLTAGE_SENSOR_PIN) * (5.0 / 1023.0);
+  float current = analogRead(CURRENT_SENSOR_PIN) * (5.0 / 1023.0); // Simplified
+
+  // Example logic: Open inlet if pressure low
+  if (pressure < 50.0) digitalWrite(VALVE_INLET_PIN, HIGH);
+  else digitalWrite(VALVE_INLET_PIN, LOW);
+
+  // Open outlet valve if water too high
+  if (waterLevel < 10.0) digitalWrite(VALVE_OUTLET_PIN, HIGH);
+  else digitalWrite(VALVE_OUTLET_PIN, LOW);
+
+  // Display
+  lcd.setCursor(0, 0);
+  lcd.print("P:");
+  lcd.print(pressure, 0);
+  lcd.print("kPa ");
+
+  lcd.setCursor(0, 1);
+  lcd.print("RPM:");
+  lcd.print(rpm, 0);
+  lcd.print(" V:");
+  lcd.print(voltage, 1);
+
+  // Serial debug
+  Serial.print("Pressure: "); Serial.print(pressure); Serial.print(" kPa, ");
+  Serial.print("Level: "); Serial.print(waterLevel); Serial.print(" cm, ");
+  Serial.print("RPM: "); Serial.print(rpm);
+  Serial.print(" Voltage: "); Serial.print(voltage);
+  Serial.print(" Current: "); Serial.println(current);
+
+  delay(500);
+}
