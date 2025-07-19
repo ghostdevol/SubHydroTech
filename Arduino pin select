@@ -1,0 +1,12 @@
+#define VALVE_INLET_PIN    3   // Digital output to MOSFET
+#define VALVE_OUTLET_PIN   4
+
+#define PRESSURE_SENSOR_PIN A0
+#define LEVEL_SENSOR_TRIG   8
+#define LEVEL_SENSOR_ECHO   9
+
+#define RPM_SENSOR_PIN      2   // Interrupt pin
+#define CURRENT_SENSOR_PIN  A1
+#define VOLTAGE_SENSOR_PIN  A2
+
+// I2C Pins for LCD: SDA/SCL (A4/A5 on Uno)
